@@ -1,0 +1,71 @@
+from scipy.stats import zscore
+from sklearn.model_selection import train_test_split
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Activation
+from tensorflow.keras.callbacks import EarlyStopping
+
+def fill_missing_numeric(df,current,target):
+    # Fill in as needed
+    # Read the data set
+    df = pd.read_csv("https://data.heatonresearch.com/data/t81-558/crx.csv",na_values=['NA','?'])
+    df_original=df
+
+    # Generate dummies
+
+    df = pd.concat([df,pd.get_dummies(df['a9'],prefix="a9")],axis=1)
+    df.drop('a9', axis=1, inplace=True)
+
+    df = pd.concat([df,pd.get_dummies(df['a10'],prefix="a10")],axis=1)
+    df.drop('a10', axis=1, inplace=True)
+
+    df = pd.concat([df,pd.get_dummies(df['a12'],prefix="a12")],axis=1)
+    df.drop('a12', axis=1, inplace=True)
+
+    df = pd.concat([df,pd.get_dummies(df['a13'],prefix="a13")],axis=1)
+    df.drop('a13', axis=1, inplace=True)
+
+    # Standardize ranges
+    df['s3'] = zscore(df['s3'])
+    df['a8'] = zscore(df['a8'])
+    df['a11'] = zscore(df['a11'])
+    df['a15'] = zscore(df['a15'])
+
+    df_null = df.loc[df[current].isnull()]
+    df = df.loc[df[current].notnull()]
+
+
+    # Convert to numpy
+    x = df[['s3','a8','a9_f','a9_t','a10_f','a10_t','a11','a12_f','a12_t','a13_g','a13_p','a13_s','a15']].values
+    y = df[[current]].values
+
+    # Create train/test
+    x_train, x_test, y_train, y_test = train_test_split(    
+    x, y, test_size=0.25,random_state=1)
+
+    model = Sequential()
+    model.add(Dense(30, input_dim=x.shape[1], activation='relu',kernel_initializer='normal')) # Hidden 1
+    model.add(Dense(10, input_dim=x.shape[1], activation='relu',kernel_initializer='normal'))
+    model.add(Dense(1)) # Output
+    model.compile(loss='mean_squared_error', optimizer='adam')
+
+    monitor = EarlyStopping(monitor='val_loss', min_delta=1e-3, 
+                        patience=5, verbose=2, mode='auto', 
+                        restore_best_weights=True)
+    model.fit(x_train,y_train,validation_data=(x_test,y_test),
+          callbacks=[monitor],verbose=2,epochs=100)
+    
+    # Predict
+    pred = model.predict(x_test)
+    pred
+
+    from sklearn import metrics
+    # Measure MSE error.  
+    score = metrics.mean_squared_error(pred,y_test)
+    print("Final score (MSE): {}".format(score))
+
+    nan=df_null[['s3','a8','a9_f','a9_t','a10_f','a10_t','a11','a12_f','a12_t','a13_g','a13_p','a13_s','a15']].values
+    pred1=model.predict(nan)
+
+    df_original.loc[(df_original[current].isnull()),current]=pred1
+
+    return df_original
