@@ -1,0 +1,21 @@
+# Begin assignment
+
+df = pd.read_csv("https://data.heatonresearch.com/data/t81-558/datasets/series-31.csv")
+df['time'] = pd.to_datetime(df['time'], errors='coerce')
+
+# Your code goes here.
+df['date'] = df['time'].dt.date
+df['Time'] = df['time'].dt.strftime('%H:%M')
+
+df.drop(['time'],axis=1, inplace=True)
+
+df['max']=df.groupby('date')['value'].transform('max')
+df['min']=df.groupby('date')['value'].transform('min')
+df_start=df[(df['Time']==df["Time"].min())]
+df_end=df[(df['Time']==df["Time"].max())]
+df_start=df_start.rename(columns={'value':'starting'})
+df_end=df_end.rename(columns={'value':'ending'})
+df=pd.merge(df_start,df_end,how='inner',on=('date','max','min'))
+order=['date','starting','max','min','ending']
+df=df[order]
+df=df.sort_values(by=['date'])
